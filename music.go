@@ -20,13 +20,13 @@ import (
 )
 
 var (
-	streamer     beep.StreamSeekCloser
-	format       beep.Format
-	playing      bool
-	paused       bool
-	playMutex    sync.Mutex
-	done         chan bool
-	pauseButton  *widget.Button
+	streamer    beep.StreamSeekCloser
+	format      beep.Format
+	playing     bool
+	paused      bool
+	playMutex   sync.Mutex
+	done        chan bool
+	playPauseButton *widget.Button
 )
 
 func main() {
@@ -42,38 +42,45 @@ func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("Music Player")
 
-	// Play button
-	playButton := widget.NewButton("Play", func() {
-		go playAudio(audioFilePath)
+	// Play/Pause button
+	playPauseButton = widget.NewButton("Play", func() {
+		go togglePlayPause(audioFilePath)
 	})
 
-	// Pause/Resume button
-	pauseButton = widget.NewButton("Pause", func() {
-		togglePause()
-	})
-
-	// Add buttons to the window
+	// Add button to the window
 	myWindow.SetContent(container.NewVBox(
 		widget.NewLabel(fmt.Sprintf("File: %s", filepath.Base(audioFilePath))),
-		playButton,
-		pauseButton,
+		playPauseButton,
 	))
 	myWindow.Resize(fyne.NewSize(300, 150))
 	myWindow.Show()
 	myApp.Run()
 }
 
-func playAudio(filePath string) {
+func togglePlayPause(filePath string) {
 	playMutex.Lock()
-	if playing {
-		playMutex.Unlock()
-		return
-	}
-	playing = true
-	paused = false
-	pauseButton.SetText("Pause") // Reset button text when playback starts
-	playMutex.Unlock()
+	defer playMutex.Unlock()
 
+	if !playing {
+		// Start playing
+		playing = true
+		paused = false
+		playPauseButton.SetText("Pause")
+		go playAudio(filePath)
+	} else if paused {
+		// Resume playback
+		paused = false
+		speaker.Unlock()
+		playPauseButton.SetText("Pause")
+	} else {
+		// Pause playback
+		paused = true
+		speaker.Lock()
+		playPauseButton.SetText("Play")
+	}
+}
+
+func playAudio(filePath string) {
 	// Open the audio file
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -110,29 +117,15 @@ func playAudio(filePath string) {
 		done <- true
 	})))
 
-	// Wait for playback to finish
-	<-done
+	// Wait for playback to finish or until paused
+	select {
+	case <-done:
+	case <-time.After(100 * time.Hour): // Simulate a very long pause
+	}
+
 	playMutex.Lock()
 	playing = false
 	paused = false
+	playPauseButton.SetText("Play")
 	playMutex.Unlock()
-}
-
-func togglePause() {
-	playMutex.Lock()
-	defer playMutex.Unlock()
-
-	if !playing {
-		return
-	}
-
-	if paused {
-		speaker.Unlock()
-		paused = false
-		pauseButton.SetText("Pause")
-	} else {
-		speaker.Lock()
-		paused = true
-		pauseButton.SetText("Resume")
-	}
 }
