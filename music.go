@@ -23,8 +23,7 @@ var (
 	musicStreamer        beep.StreamSeekCloser
 	musicFormat          beep.Format
 	controlStreamer      *beep.Ctrl
-	playing              bool
-	paused               bool
+	playingSong          bool
 	done                 chan bool
 	playPauseButton      *widget.Button
 	restartButton        *widget.Button
@@ -86,7 +85,7 @@ func main() {
 }
 
 func togglePlayPause() {
-	if playing || paused {
+	if playingSong {
 		speaker.Lock()
 		if controlStreamer != nil {
 			controlStreamer.Paused = !controlStreamer.Paused
@@ -139,14 +138,12 @@ func playAudio(filePath string) {
 		done <- true
 	})))
 
-	playing = true
-	paused = false
+	playingSong = true
 	go updateProgressBar()
 
 	<-done
 
-	playing = false
-	paused = false
+	playingSong = false
 	playPauseButton.SetText("Play")
 }
 
@@ -171,7 +168,7 @@ func formatTime(samples int, sampleRate beep.SampleRate) string {
 }
 
 func updateProgressBar() {
-	for playing {
+	for playingSong {
 		time.Sleep(200 * time.Millisecond)
 		speaker.Lock()
 		if controlStreamer != nil {
