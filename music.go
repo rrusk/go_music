@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
+
 	"time"
 
 	fyne "fyne.io/fyne/v2"
@@ -25,7 +25,6 @@ var (
 	controlStreamer      *beep.Ctrl
 	playing              bool
 	paused               bool
-	playMutex            sync.Mutex
 	done                 chan bool
 	playPauseButton      *widget.Button
 	restartButton        *widget.Button
@@ -129,10 +128,10 @@ func playAudio(filePath string) {
 	}
 	defer musicStreamer.Close()
 
-	if musicFormat.SampleRate == 44100 {
+	if musicFormat.SampleRate == beep.SampleRate(defaultSampleRate) {
 		controlStreamer = &beep.Ctrl{Streamer: musicStreamer, Paused: false}
 	} else {
-		controlStreamer = &beep.Ctrl{Streamer: beep.Resample(4, musicFormat.SampleRate, 44100, musicStreamer), Paused: false}
+		controlStreamer = &beep.Ctrl{Streamer: beep.Resample(4, musicFormat.SampleRate, beep.SampleRate(defaultSampleRate), musicStreamer), Paused: false}
 	}
 
 	done = make(chan bool)
@@ -146,11 +145,9 @@ func playAudio(filePath string) {
 
 	<-done
 
-	playMutex.Lock()
 	playing = false
 	paused = false
 	playPauseButton.SetText("Play")
-	playMutex.Unlock()
 }
 
 func restartPlayback() {
