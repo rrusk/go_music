@@ -6,11 +6,13 @@ import (
 	"path/filepath"
 	"time"
 
-	fyne "fyne.io/fyne/v2"
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"github.com/go-ini/ini"
 	"github.com/gopxl/beep/v2"
+	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
@@ -38,15 +40,28 @@ var (
 
 	defaultBufferLength = 100
 	defaultSampleRate   = 44100
+	musicDir            string
+	volume              float64
 )
 
 func main() {
-	// Define the directory containing the songs
-	directory := "/home/rrusk/Music/MUSICCOMP"
+	// Load configuration
+	cfg, err := ini.Load("config.ini")
+	if err != nil {
+		fmt.Println("Failed to load configuration file:", err)
+		return
+	}
+
+	// Parse configuration values
+	musicDir = cfg.Section("user").Key("music_dir").String()
+	volume, _ = cfg.Section("user").Key("volume").Float64()
+	if volume == 0 {
+		volume = 1.0 // Default volume
+	}
 
 	// Initialize the playlist
 	playlist = []string{}
-	if err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(musicDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -166,8 +181,15 @@ func playAudio(filePath string) {
 		controlStreamer = &beep.Ctrl{Streamer: beep.Resample(4, musicFormat.SampleRate, beep.SampleRate(defaultSampleRate), musicStreamer), Paused: false}
 	}
 
+	speaker.Clear()
+	volumeControl := &effects.Volume{
+		Streamer: controlStreamer,
+		Base:     2,
+		Volume:   float64(volume-100) / 16,
+		Silent:   volume == 0,
+	}
 	done = make(chan bool)
-	speaker.Play(beep.Seq(controlStreamer, beep.Callback(func() {
+	speaker.Play(beep.Seq(volumeControl, beep.Callback(func() {
 		done <- true
 	})))
 
