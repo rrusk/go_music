@@ -51,21 +51,11 @@ func main() {
 		return
 	}
 
-	// Initialize the playlist
-	playlist = []string{}
-	if err := filepath.Walk(musicDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			switch filepath.Ext(path) {
-			case ".mp3", ".wav", ".ogg", ".flac":
-				playlist = append(playlist, path)
-			}
-		}
-		return nil
-	}); err != nil {
-		fmt.Println("Error reading directory:", err)
+	// Initialize playlist
+	var err error
+	playlist, err = initializePlaylist(musicDir)
+	if err != nil {
+		fmt.Println("Failed to initialize playlist:", err)
 		return
 	}
 
@@ -125,47 +115,65 @@ func main() {
 }
 
 func loadConfiguration() error {
-    const configPath = "config.ini"
+	const configPath = "config.ini"
 
-    // Default configuration values
-    defaultVolume := 0.7
-    defaultMusicDir := filepath.Join(os.Getenv("HOME"), "Music")
+	// Default configuration values
+	defaultVolume := 120.0
+	defaultMusicDir := filepath.Join(os.Getenv("HOME"), "Music")
 
-    // Check if config.ini exists
-    if _, err := os.Stat(configPath); os.IsNotExist(err) {
-        // Create default configuration
-        cfg := ini.Empty()
-        cfg.Section("user").Key("volume").SetValue(fmt.Sprintf("%.1f", defaultVolume))
-        cfg.Section("user").Key("music_dir").SetValue(defaultMusicDir)
-        cfg.Section("user").Key("song_max_playtime").SetValue("210")
-        cfg.Section("user").Key("practice_type").SetValue("60min")
+	// Check if config.ini exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Create default configuration
+		cfg := ini.Empty()
+		cfg.Section("user").Key("volume").SetValue(fmt.Sprintf("%.1f", defaultVolume))
+		cfg.Section("user").Key("music_dir").SetValue(defaultMusicDir)
+		cfg.Section("user").Key("song_max_playtime").SetValue("210")
+		cfg.Section("user").Key("practice_type").SetValue("60min")
 
-        // Save the file
-        if err := cfg.SaveTo(configPath); err != nil {
-            return fmt.Errorf("failed to create default config.ini: %w", err)
-        }
+		// Save the file
+		if err := cfg.SaveTo(configPath); err != nil {
+			return fmt.Errorf("failed to create default config.ini: %w", err)
+		}
 
-        fmt.Println("Default config.ini created at:", configPath)
-    }
+		fmt.Println("Default config.ini created at:", configPath)
+	}
 
-    // Load configuration
-    cfg, err := ini.Load(configPath)
-    if err != nil {
-        return fmt.Errorf("failed to load config.ini: %w", err)
-    }
+	// Load configuration
+	cfg, err := ini.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config.ini: %w", err)
+	}
 
-    // Parse configuration values
-    musicDir = cfg.Section("user").Key("music_dir").String()
-    if musicDir == "" {
-        musicDir = defaultMusicDir
-    }
+	// Parse configuration values
+	musicDir = cfg.Section("user").Key("music_dir").String()
+	if musicDir == "" {
+		musicDir = defaultMusicDir
+	}
 
-    volume, err = cfg.Section("user").Key("volume").Float64()
-    if err != nil || volume <= 0 {
-        volume = defaultVolume
-    }
+	volume, err = cfg.Section("user").Key("volume").Float64()
+	if err != nil || volume <= 0 {
+		volume = defaultVolume
+	}
 
-    return nil
+	return nil
+}
+
+func initializePlaylist(dir string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			switch filepath.Ext(path) {
+			case ".mp3", ".wav", ".ogg", ".flac":
+				files = append(files, path)
+			}
+		}
+		return nil
+	})
+
+	return files, err
 }
 
 func togglePlayPause() {
