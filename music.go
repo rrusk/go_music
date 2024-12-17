@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/go-ini/ini"
 	"github.com/gopxl/beep/v2"
@@ -24,6 +25,7 @@ var (
 	musicStreamer        beep.StreamSeekCloser
 	musicFormat          beep.Format
 	controlStreamer      *beep.Ctrl
+	volumeControl        *effects.Volume
 	playingSong          bool
 	done                 chan bool
 	playPauseButton      *widget.Button
@@ -34,9 +36,11 @@ var (
 	currentPositionLabel *widget.Label
 	totalDurationLabel   *widget.Label
 	currentSongLabel     *widget.Label
+	volumeSlider         *widget.Slider
 
 	playlist         []string
 	currentSongIndex int
+	playlistList     *widget.List
 
 	defaultBufferLength = 100
 	defaultSampleRate   = 44100
@@ -60,7 +64,7 @@ func main() {
 	}
 
 	if len(playlist) == 0 {
-		fmt.Println("No supported audio files found in directory")
+		fmt.Println("No supported audio files found in directory:", musicDir)
 		return
 	}
 
@@ -91,21 +95,64 @@ func main() {
 
 	progressBar = widget.NewProgressBar()
 
-	currentPositionLabel = widget.NewLabel("Current: 00:00")
-	totalDurationLabel = widget.NewLabel("Total: 00:00")
-	currentSongLabel = widget.NewLabel("Now Playing: " + filepath.Base(playlist[0]))
+	currentPositionLabel = widget.NewLabel("00:00")
+	totalDurationLabel = widget.NewLabel("00:00")
+	currentSongLabel = widget.NewLabel(filepath.Base(playlist[0]))
 
-	// Layout
-	myWindow.SetContent(container.NewVBox(
+	// Volume Slider
+	volumeSlider = widget.NewSlider(0, 120)
+	volumeSlider.SetValue(volume)
+	volumeSlider.Step = 4
+	volumeSlider.OnChanged = func(value float64) {
+		adjustVolume(value)
+	}
+
+	// Playlist List
+	playlistList = widget.NewList(
+		func() int {
+			return len(playlist)
+		},
+		func() fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(id widget.ListItemID, item fyne.CanvasObject) {
+			label := item.(*widget.Label)
+			label.SetText(filepath.Base(playlist[id]))
+
+			// Highlight the current song
+			if id == currentSongIndex {
+				label.TextStyle = fyne.TextStyle{Bold: true}
+			} else {
+				label.TextStyle = fyne.TextStyle{Bold: false}
+			}
+		},
+	)
+
+	playlistList.OnSelected = func(id widget.ListItemID) {
+		currentSongIndex = id
+		go playAudio(playlist[currentSongIndex])
+	}
+
+	// Layout Adjustments
+	playlistContainer := container.NewStack(container.NewVScroll(playlistList))
+	playlistContainer.Resize(fyne.NewSize(600, 800))
+
+	controlsContainer := container.New(layout.NewVBoxLayout(),
 		currentSongLabel,
-		playPauseButton,
-		restartButton,
-		container.NewHBox(prevButton, nextButton),
+		container.NewHBox(currentPositionLabel, layout.NewSpacer(), totalDurationLabel),
 		progressBar,
-		container.NewHBox(currentPositionLabel, totalDurationLabel),
-	))
+		container.NewHBox(
+			container.NewVBox(widget.NewLabel("Volume"), volumeSlider),
+			prevButton, playPauseButton, nextButton, restartButton),
+	)
 
-	myWindow.Resize(fyne.NewSize(400, 200))
+	mainContent := container.NewVBox(
+		playlistContainer,
+		controlsContainer,
+	)
+
+	myWindow.SetContent(mainContent)
+	myWindow.Resize(fyne.NewSize(600, 800))
 	myWindow.Show()
 
 	// Start playing the first song
@@ -192,9 +239,11 @@ func togglePlayPause() {
 }
 
 func playAudio(filePath string) {
+	// Open and decode the file
 	file, err := os.Open(filePath)
 	if err != nil {
-		panic(err)
+		fmt.Println("Error opening file:", err)
+		return
 	}
 	defer file.Close()
 
@@ -212,10 +261,12 @@ func playAudio(filePath string) {
 	case ".flac":
 		musicStreamer, musicFormat, err = flac.Decode(file)
 	default:
-		panic("Unsupported audio format: " + ext)
+		fmt.Println("Unsupported file format:", ext)
+		return
 	}
 	if err != nil {
-		panic(err)
+		fmt.Println("Error decoding file:", err)
+		return
 	}
 	defer musicStreamer.Close()
 
@@ -239,13 +290,16 @@ func playAudio(filePath string) {
 
 	playingSong = true
 	currentSongLabel.SetText("Now Playing: " + filepath.Base(filePath))
+	playlistList.Refresh()                  // Refresh playlist display
+	playlistList.ScrollTo(currentSongIndex) // Scroll to current song
 	go updateProgressBar()
 
 	<-done
 
 	playingSong = false
 	playPauseButton.SetText("Play")
-	playNextSong() // Automatically play the next song when current one ends
+	playNextSong() // Automatically play the next song
+
 }
 
 func playNextSong() {
@@ -267,11 +321,19 @@ func restartPlayback() {
 	if musicStreamer != nil {
 		if err := musicStreamer.Seek(0); err != nil {
 			fmt.Println("Error restarting playback:", err)
-			return
 		}
 	}
 	speaker.Unlock()
 	go updateProgressBar()
+}
+
+func adjustVolume(value float64) {
+	speaker.Lock()
+	volume = value
+	if volumeControl != nil {
+		volumeControl.Volume = float64(volume-100) / 16
+	}
+	speaker.Unlock()
 }
 
 func formatTime(samples int, sampleRate beep.SampleRate) string {
