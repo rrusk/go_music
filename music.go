@@ -103,12 +103,12 @@ func main() {
 	volumeSlider = widget.NewSlider(0, 120)
 	volumeSlider.SetValue(volume)
 	volumeSlider.Step = 4
-	volumeSlider.Orientation = widget.Vertical
+	volumeSlider.Orientation = widget.Horizontal
 	volumeSlider.OnChanged = func(value float64) {
 		adjustVolume(value)
 	}
-	volumeContainer := container.NewHBox(
-		widget.NewLabel("Volume"),
+	volumeContainer := container.NewVBox(
+		widget.NewLabel("    Volume    "),
 		volumeSlider,
 	)
 
@@ -286,7 +286,7 @@ func playAudio(filePath string) {
 	}
 
 	speaker.Clear()
-	
+
 	if volumeControl == nil {
 		volumeControl = &effects.Volume{
 			Streamer: controlStreamer,
@@ -296,7 +296,6 @@ func playAudio(filePath string) {
 	volumeControl.Streamer = controlStreamer
 	volumeControl.Volume = float64(volume-100) / 16
 	volumeControl.Silent = volume == 0
-	
 
 	done = make(chan bool)
 	speaker.Play(beep.Seq(volumeControl, beep.Callback(func() {
