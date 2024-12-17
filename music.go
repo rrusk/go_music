@@ -103,9 +103,14 @@ func main() {
 	volumeSlider = widget.NewSlider(0, 120)
 	volumeSlider.SetValue(volume)
 	volumeSlider.Step = 4
+	volumeSlider.Orientation = widget.Vertical
 	volumeSlider.OnChanged = func(value float64) {
 		adjustVolume(value)
 	}
+	volumeContainer := container.NewHBox(
+		widget.NewLabel("Volume"),
+		volumeSlider,
+	)
 
 	// Playlist List
 	playlistList = widget.NewList(
@@ -127,32 +132,36 @@ func main() {
 			}
 		},
 	)
-
 	playlistList.OnSelected = func(id widget.ListItemID) {
 		currentSongIndex = id
 		go playAudio(playlist[currentSongIndex])
 	}
+	scrollablePlaylist := container.NewVScroll(playlistList)
+	scrollablePlaylist.SetMinSize(fyne.NewSize(600, 200))
 
-	// Layout Adjustments
-	playlistContainer := container.NewStack(container.NewVScroll(playlistList))
-	playlistContainer.Resize(fyne.NewSize(600, 800))
-
-	controlsContainer := container.New(layout.NewVBoxLayout(),
-		currentSongLabel,
-		container.NewHBox(currentPositionLabel, layout.NewSpacer(), totalDurationLabel),
-		progressBar,
-		container.NewHBox(
-			container.NewVBox(widget.NewLabel("Volume"), volumeSlider),
-			prevButton, playPauseButton, nextButton, restartButton),
+	// Controls Layout
+	controlsContainer := container.NewHBox(
+		prevButton,
+		playPauseButton,
+		nextButton,
+		restartButton,
+		layout.NewSpacer(),
 	)
 
-	mainContent := container.NewVBox(
-		playlistContainer,
-		controlsContainer,
+	// Main Layout
+	mainContent := container.NewBorder(
+		scrollablePlaylist, // Playlist at the top
+		container.NewVBox( // Bottom controls
+			currentSongLabel,
+			container.NewHBox(currentPositionLabel, layout.NewSpacer(), totalDurationLabel),
+			progressBar,
+			container.NewHBox(volumeContainer, controlsContainer), // Controls and volume slider in one row
+		),
+		nil, nil,
 	)
 
 	myWindow.SetContent(mainContent)
-	myWindow.Resize(fyne.NewSize(600, 800))
+	myWindow.Resize(fyne.NewSize(600, 400))
 	myWindow.Show()
 
 	// Start playing the first song
@@ -277,12 +286,18 @@ func playAudio(filePath string) {
 	}
 
 	speaker.Clear()
-	volumeControl := &effects.Volume{
-		Streamer: controlStreamer,
-		Base:     2,
-		Volume:   float64(volume-100) / 16,
-		Silent:   volume == 0,
+	
+	if volumeControl == nil {
+		volumeControl = &effects.Volume{
+			Streamer: controlStreamer,
+			Base:     2,
+		}
 	}
+	volumeControl.Streamer = controlStreamer
+	volumeControl.Volume = float64(volume-100) / 16
+	volumeControl.Silent = volume == 0
+	
+
 	done = make(chan bool)
 	speaker.Play(beep.Seq(volumeControl, beep.Callback(func() {
 		done <- true
@@ -332,6 +347,7 @@ func adjustVolume(value float64) {
 	volume = value
 	if volumeControl != nil {
 		volumeControl.Volume = float64(volume-100) / 16
+		volumeControl.Silent = volume == 0
 	}
 	speaker.Unlock()
 }
