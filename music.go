@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -134,6 +135,7 @@ func main() {
 	)
 	playlistList.OnSelected = func(id widget.ListItemID) {
 		currentSongIndex = id
+		playlistList.Refresh()
 		go playAudio(playlist[currentSongIndex])
 	}
 	scrollablePlaylist := container.NewVScroll(playlistList)
@@ -215,21 +217,59 @@ func loadConfiguration() error {
 }
 
 func initializePlaylist(dir string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			switch filepath.Ext(path) {
-			case ".mp3", ".wav", ".ogg", ".flac":
-				files = append(files, path)
-			}
-		}
-		return nil
-	})
+	// Define dance categories and corresponding subfolder names
+	standardBallroom := []string{"Waltz", "Tango", "VienneseWaltz", "QuickStep"}
+	latinDances := []string{"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"}
+	otherDances := []string{"WCS"}
 
-	return files, err
+	// Consolidate all subfolder names into a single list
+	allDanceFolders := append(standardBallroom, append(latinDances, otherDances...)...)
+
+	var playlist []string
+
+	for _, subfolder := range allDanceFolders {
+		subfolderPath := filepath.Join(dir, subfolder)
+
+		// Check if the subfolder exists
+		if _, err := os.Stat(subfolderPath); os.IsNotExist(err) {
+			fmt.Println("Subfolder does not exist:", subfolderPath)
+			continue
+		}
+
+		var filesInSubfolder []string
+
+		// Walk through the subfolder and collect audio files
+		err := filepath.Walk(subfolderPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !info.IsDir() {
+				switch filepath.Ext(path) {
+				case ".mp3", ".wav", ".ogg", ".flac":
+					filesInSubfolder = append(filesInSubfolder, path)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			fmt.Println("Error walking subfolder:", subfolderPath, "-", err)
+		}
+
+		// Randomly shuffle the collected files
+		rand.Shuffle(len(filesInSubfolder), func(i, j int) {
+			filesInSubfolder[i], filesInSubfolder[j] = filesInSubfolder[j], filesInSubfolder[i]
+		})
+
+		// Select up to 4 files
+		if len(filesInSubfolder) > 4 {
+			filesInSubfolder = filesInSubfolder[:4]
+		}
+
+		// Add selected files to the main playlist
+		playlist = append(playlist, filesInSubfolder...)
+	}
+
+	return playlist, nil
 }
 
 func togglePlayPause() {
@@ -319,6 +359,7 @@ func playAudio(filePath string) {
 func playNextSong() {
 	if currentSongIndex < len(playlist)-1 {
 		currentSongIndex++
+		playlistList.Refresh()
 		go playAudio(playlist[currentSongIndex])
 	}
 }
@@ -326,6 +367,7 @@ func playNextSong() {
 func playPreviousSong() {
 	if currentSongIndex > 0 {
 		currentSongIndex--
+		playlistList.Refresh()
 		go playAudio(playlist[currentSongIndex])
 	}
 }
