@@ -216,60 +216,131 @@ func loadConfiguration() error {
 	return nil
 }
 
+// func initializePlaylist(dir string) ([]string, error) {
+// 	// Define dance categories and corresponding subfolder names
+// 	standardBallroom := []string{"Waltz", "Tango", "VienneseWaltz", "QuickStep"}
+// 	latinDances := []string{"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"}
+// 	otherDances := []string{"WCS"}
+
+// 	// Consolidate all subfolder names into a single list
+// 	allDanceFolders := append(standardBallroom, append(latinDances, otherDances...)...)
+
+// 	var playlist []string
+
+// 	for _, subfolder := range allDanceFolders {
+// 		subfolderPath := filepath.Join(dir, subfolder)
+
+// 		// Check if the subfolder exists
+// 		if _, err := os.Stat(subfolderPath); os.IsNotExist(err) {
+// 			fmt.Println("Subfolder does not exist:", subfolderPath)
+// 			continue
+// 		}
+
+// 		var filesInSubfolder []string
+
+// 		// Walk through the subfolder and collect audio files
+// 		err := filepath.Walk(subfolderPath, func(path string, info os.FileInfo, err error) error {
+// 			if err != nil {
+// 				return err
+// 			}
+// 			if !info.IsDir() {
+// 				switch filepath.Ext(path) {
+// 				case ".mp3", ".wav", ".ogg", ".flac":
+// 					filesInSubfolder = append(filesInSubfolder, path)
+// 				}
+// 			}
+// 			return nil
+// 		})
+// 		if err != nil {
+// 			fmt.Println("Error walking subfolder:", subfolderPath, "-", err)
+// 		}
+
+// 		// Randomly shuffle the collected files
+// 		rand.Shuffle(len(filesInSubfolder), func(i, j int) {
+// 			filesInSubfolder[i], filesInSubfolder[j] = filesInSubfolder[j], filesInSubfolder[i]
+// 		})
+
+// 		// Select up to 4 files
+// 		if len(filesInSubfolder) > 4 {
+// 			filesInSubfolder = filesInSubfolder[:4]
+// 		}
+
+// 		// Add selected files to the main playlist
+// 		playlist = append(playlist, filesInSubfolder...)
+// 	}
+
+// 	return playlist, nil
+// }
+
 func initializePlaylist(dir string) ([]string, error) {
-	// Define dance categories and corresponding subfolder names
-	standardBallroom := []string{"Waltz", "Tango", "VienneseWaltz", "QuickStep"}
-	latinDances := []string{"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"}
-	otherDances := []string{"WCS"}
-
-	// Consolidate all subfolder names into a single list
-	allDanceFolders := append(standardBallroom, append(latinDances, otherDances...)...)
-
 	var playlist []string
 
-	for _, subfolder := range allDanceFolders {
-		subfolderPath := filepath.Join(dir, subfolder)
+	// Map dances to their categories
+	danceCategories := map[string][]string{
+		"Ballroom": {"Waltz", "Tango", "VienneseWaltz", "Foxtrot", "QuickStep"},
+		"Latin":    {"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"},
+		"Other":    {"WCS"},
+	}
 
-		// Check if the subfolder exists
-		if _, err := os.Stat(subfolderPath); os.IsNotExist(err) {
-			fmt.Println("Subfolder does not exist:", subfolderPath)
-			continue
-		}
+	for _, dances := range danceCategories {
+		for _, dance := range dances {
+			subfolder := filepath.Join(dir, dance)
+			announcementFile := filepath.Join("announce", dance+".mp3")
 
-		var filesInSubfolder []string
+			// Check if the announcement file exists
+			if _, err := os.Stat(announcementFile); os.IsNotExist(err) {
+				fmt.Printf("No announcement file found for %s\n", dance)
+				continue
+			}
 
-		// Walk through the subfolder and collect audio files
-		err := filepath.Walk(subfolderPath, func(path string, info os.FileInfo, err error) error {
+			// Read songs from the dance subfolder
+			songs, err := getSongsFromSubfolder(subfolder, 4) // Randomly choose 4 songs
 			if err != nil {
-				return err
+				fmt.Printf("Error reading subfolder for %s: %v\n", dance, err)
+				continue
 			}
-			if !info.IsDir() {
-				switch filepath.Ext(path) {
-				case ".mp3", ".wav", ".ogg", ".flac":
-					filesInSubfolder = append(filesInSubfolder, path)
-				}
+
+			if len(songs) > 0 {
+				// Add the announcement file before the songs of this dance
+				playlist = append(playlist, announcementFile)
+				playlist = append(playlist, songs...)
 			}
-			return nil
-		})
-		if err != nil {
-			fmt.Println("Error walking subfolder:", subfolderPath, "-", err)
 		}
-
-		// Randomly shuffle the collected files
-		rand.Shuffle(len(filesInSubfolder), func(i, j int) {
-			filesInSubfolder[i], filesInSubfolder[j] = filesInSubfolder[j], filesInSubfolder[i]
-		})
-
-		// Select up to 4 files
-		if len(filesInSubfolder) > 4 {
-			filesInSubfolder = filesInSubfolder[:4]
-		}
-
-		// Add selected files to the main playlist
-		playlist = append(playlist, filesInSubfolder...)
 	}
 
 	return playlist, nil
+}
+
+// Function to get songs from a subfolder
+func getSongsFromSubfolder(subfolder string, maxSongs int) ([]string, error) {
+	var songs []string
+	err := filepath.Walk(subfolder, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			switch filepath.Ext(path) {
+			case ".mp3", ".wav", ".ogg", ".flac":
+				songs = append(songs, path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Shuffle songs and pick up to `maxSongs`
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(songs), func(i, j int) {
+		songs[i], songs[j] = songs[j], songs[i]
+	})
+
+	if len(songs) > maxSongs {
+		songs = songs[:maxSongs]
+	}
+
+	return songs, nil
 }
 
 func togglePlayPause() {
@@ -319,6 +390,7 @@ func playAudio(filePath string) {
 	}
 	defer musicStreamer.Close()
 
+	// Adjust for sample rate
 	if musicFormat.SampleRate == beep.SampleRate(defaultSampleRate) {
 		controlStreamer = &beep.Ctrl{Streamer: musicStreamer, Paused: false}
 	} else {
@@ -326,6 +398,7 @@ func playAudio(filePath string) {
 	}
 
 	speaker.Clear()
+	// Initialize volume control
 
 	if volumeControl == nil {
 		volumeControl = &effects.Volume{
@@ -337,17 +410,20 @@ func playAudio(filePath string) {
 	volumeControl.Volume = float64(volume-100) / 16
 	volumeControl.Silent = volume == 0
 
+	// Play the audio
 	done = make(chan bool)
 	speaker.Play(beep.Seq(volumeControl, beep.Callback(func() {
 		done <- true
 	})))
 
+	// Update UI
 	playingSong = true
 	currentSongLabel.SetText("Now Playing: " + filepath.Base(filePath))
 	playlistList.Refresh()                  // Refresh playlist display
 	playlistList.ScrollTo(currentSongIndex) // Scroll to current song
 	go updateProgressBar()
 
+	// Wait for the audio to finish
 	<-done
 
 	playingSong = false
