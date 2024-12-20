@@ -143,7 +143,7 @@ func main() {
 	playlistList.OnSelected = func(id widget.ListItemID) {
 		currentSongIndex = id
 		playlistList.Refresh()
-		go playAudio(playlist[currentSongIndex].FilePath)
+		go playAudio(playlist[currentSongIndex])
 	}
 	scrollablePlaylist := container.NewVScroll(playlistList)
 	scrollablePlaylist.SetMinSize(fyne.NewSize(600, 200))
@@ -175,7 +175,7 @@ func main() {
 
 	// Start playing the first song
 	currentSongIndex = 0
-	go playAudio(playlist[currentSongIndex].FilePath)
+	go playAudio(playlist[currentSongIndex])
 	myApp.Run()
 }
 
@@ -342,16 +342,16 @@ func togglePlayPause() {
 	}
 }
 
-func playAudio(filePath string) {
+func playAudio(song Song) {
 	// Open and decode the file
-	file, err := os.Open(filePath)
+	file, err := os.Open(song.FilePath)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return
 	}
 	defer file.Close()
 
-	ext := filepath.Ext(filePath)
+	ext := filepath.Ext(song.FilePath)
 
 	speaker.Clear()
 
@@ -402,7 +402,7 @@ func playAudio(filePath string) {
 
 	// Update UI
 	playingSong = true
-	currentSongLabel.SetText("Now Playing: " + filepath.Base(filePath))
+	currentSongLabel.SetText("Now Playing: " + filepath.Base(song.Display))
 	playlistList.Refresh()                  // Refresh playlist display
 	playlistList.ScrollTo(currentSongIndex) // Scroll to current song
 	go updateProgressBar()
@@ -420,7 +420,7 @@ func playNextSong() {
 	if currentSongIndex < len(playlist)-1 {
 		currentSongIndex++
 		playlistList.Refresh()
-		go playAudio(playlist[currentSongIndex].FilePath)
+		go playAudio(playlist[currentSongIndex])
 	}
 }
 
@@ -428,7 +428,7 @@ func playPreviousSong() {
 	if currentSongIndex > 0 {
 		currentSongIndex--
 		playlistList.Refresh()
-		go playAudio(playlist[currentSongIndex].FilePath)
+		go playAudio(playlist[currentSongIndex])
 	}
 }
 
