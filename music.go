@@ -106,6 +106,8 @@ func main() {
 	currentPositionLabel = widget.NewLabel("00:00")
 	totalDurationLabel = widget.NewLabel("00:00")
 	currentSongLabel = widget.NewLabel(filepath.Base(playlist[0].Display))
+	currentSongLabel.Alignment = fyne.TextAlignCenter
+	currentSongContainer := container.NewCenter(currentSongLabel)
 
 	// Volume Slider
 	volumeSlider = widget.NewSlider(0, 120)
@@ -126,11 +128,12 @@ func main() {
 			return len(playlist)
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("")
+			return container.NewCenter(widget.NewLabel(""))
 		},
 		func(id widget.ListItemID, item fyne.CanvasObject) {
-			label := item.(*widget.Label)
+			label := item.(*fyne.Container).Objects[0].(*widget.Label)
 			label.SetText(filepath.Base(playlist[id].Display))
+			label.Alignment = fyne.TextAlignCenter
 
 			// Highlight the current song
 			if id == currentSongIndex {
@@ -161,7 +164,7 @@ func main() {
 	mainContent := container.NewBorder(
 		scrollablePlaylist, // Playlist at the top
 		container.NewVBox( // Bottom controls
-			currentSongLabel,
+			currentSongContainer,
 			container.NewHBox(currentPositionLabel, layout.NewSpacer(), totalDurationLabel),
 			progressBar,
 			container.NewHBox(volumeContainer, controlsContainer), // Controls and volume slider in one row
@@ -402,7 +405,7 @@ func playAudio(song Song) {
 
 	// Update UI
 	playingSong = true
-	currentSongLabel.SetText("Now Playing: " + filepath.Base(song.Display))
+	currentSongLabel.SetText(filepath.Base(song.Display))
 	playlistList.Refresh()                  // Refresh playlist display
 	playlistList.ScrollTo(currentSongIndex) // Scroll to current song
 	go updateProgressBar()
