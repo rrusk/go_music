@@ -41,7 +41,7 @@ var (
 	currentSongLabel     *widget.Label
 	volumeSlider         *widget.Slider
 
-	playlist         []string
+	playlist         []Song
 	currentSongIndex int
 	playlistList     *widget.List
 
@@ -105,7 +105,7 @@ func main() {
 
 	currentPositionLabel = widget.NewLabel("00:00")
 	totalDurationLabel = widget.NewLabel("00:00")
-	currentSongLabel = widget.NewLabel(filepath.Base(playlist[0]))
+	currentSongLabel = widget.NewLabel(filepath.Base(playlist[0].Display))
 
 	// Volume Slider
 	volumeSlider = widget.NewSlider(0, 120)
@@ -130,7 +130,7 @@ func main() {
 		},
 		func(id widget.ListItemID, item fyne.CanvasObject) {
 			label := item.(*widget.Label)
-			label.SetText(filepath.Base(playlist[id]))
+			label.SetText(filepath.Base(playlist[id].Display))
 
 			// Highlight the current song
 			if id == currentSongIndex {
@@ -143,7 +143,7 @@ func main() {
 	playlistList.OnSelected = func(id widget.ListItemID) {
 		currentSongIndex = id
 		playlistList.Refresh()
-		go playAudio(playlist[currentSongIndex])
+		go playAudio(playlist[currentSongIndex].FilePath)
 	}
 	scrollablePlaylist := container.NewVScroll(playlistList)
 	scrollablePlaylist.SetMinSize(fyne.NewSize(600, 200))
@@ -175,7 +175,7 @@ func main() {
 
 	// Start playing the first song
 	currentSongIndex = 0
-	go playAudio(playlist[currentSongIndex])
+	go playAudio(playlist[currentSongIndex].FilePath)
 	myApp.Run()
 }
 
@@ -223,8 +223,8 @@ func loadConfiguration() error {
 	return nil
 }
 
-func initializePlaylist(dir string) ([]string, error) {
-	var playlist []string
+func initializePlaylist(dir string) ([]Song, error) {
+	var playlist []Song
 
 	// Map dances to their categories
 	danceCategories := map[string][]string{
@@ -244,6 +244,12 @@ func initializePlaylist(dir string) ([]string, error) {
 				continue
 			}
 
+			// Add announcement to the playlist
+			playlist = append(playlist, Song{
+				FilePath: announcementFile,
+				Display:  extractMetadata(announcementFile),
+			})
+
 			// Read songs from the dance subfolder
 			songs, err := getSongsFromSubfolder(subfolder, 4) // Randomly choose 4 songs
 			if err != nil {
@@ -251,18 +257,14 @@ func initializePlaylist(dir string) ([]string, error) {
 				continue
 			}
 
-			if len(songs) > 0 {
-				fmt.Println("Songs for", extractMetadata(announcementFile))
-				for _, songPath := range songs {
-					metadata := extractMetadata(songPath)
-					fmt.Println(metadata)
-				}
-
-				// Add the announcement file before the songs of this dance
-				playlist = append(playlist, announcementFile)
-				playlist = append(playlist, songs...)
+			// Add songs with metadata to the playlist
+			for _, songPath := range songs {
+				metadata := extractMetadata(songPath)
+				playlist = append(playlist, Song{
+					FilePath: songPath,
+					Display:  metadata,
+				})
 			}
-
 		}
 	}
 
@@ -290,7 +292,7 @@ func extractMetadata(filePath string) string {
 	genre := metadata.Genre()
 
 	// Construct the display string
-	return fmt.Sprintf("%s / %s / %s / %s", title, genre, artist, album)
+	return fmt.Sprintf("%s | %s | %s | %s", title, genre, artist, album)
 }
 
 // Function to get songs from a subfolder
@@ -418,7 +420,7 @@ func playNextSong() {
 	if currentSongIndex < len(playlist)-1 {
 		currentSongIndex++
 		playlistList.Refresh()
-		go playAudio(playlist[currentSongIndex])
+		go playAudio(playlist[currentSongIndex].FilePath)
 	}
 }
 
@@ -426,7 +428,7 @@ func playPreviousSong() {
 	if currentSongIndex > 0 {
 		currentSongIndex--
 		playlistList.Refresh()
-		go playAudio(playlist[currentSongIndex])
+		go playAudio(playlist[currentSongIndex].FilePath)
 	}
 }
 
