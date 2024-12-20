@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	fyne.io/fyne/v2 v2.5.2
+	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/go-ini/ini v1.67.0
 	github.com/gopxl/beep/v2 v2.1.0
 )

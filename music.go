@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -12,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"github.com/dhowden/tag"
 	"github.com/go-ini/ini"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
@@ -48,6 +50,11 @@ var (
 	musicDir            string
 	volume              float64
 )
+
+type Song struct {
+	FilePath string
+	Display  string
+}
 
 func main() {
 	// Load configuration
@@ -216,70 +223,14 @@ func loadConfiguration() error {
 	return nil
 }
 
-// func initializePlaylist(dir string) ([]string, error) {
-// 	// Define dance categories and corresponding subfolder names
-// 	standardBallroom := []string{"Waltz", "Tango", "VienneseWaltz", "QuickStep"}
-// 	latinDances := []string{"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"}
-// 	otherDances := []string{"WCS"}
-
-// 	// Consolidate all subfolder names into a single list
-// 	allDanceFolders := append(standardBallroom, append(latinDances, otherDances...)...)
-
-// 	var playlist []string
-
-// 	for _, subfolder := range allDanceFolders {
-// 		subfolderPath := filepath.Join(dir, subfolder)
-
-// 		// Check if the subfolder exists
-// 		if _, err := os.Stat(subfolderPath); os.IsNotExist(err) {
-// 			fmt.Println("Subfolder does not exist:", subfolderPath)
-// 			continue
-// 		}
-
-// 		var filesInSubfolder []string
-
-// 		// Walk through the subfolder and collect audio files
-// 		err := filepath.Walk(subfolderPath, func(path string, info os.FileInfo, err error) error {
-// 			if err != nil {
-// 				return err
-// 			}
-// 			if !info.IsDir() {
-// 				switch filepath.Ext(path) {
-// 				case ".mp3", ".wav", ".ogg", ".flac":
-// 					filesInSubfolder = append(filesInSubfolder, path)
-// 				}
-// 			}
-// 			return nil
-// 		})
-// 		if err != nil {
-// 			fmt.Println("Error walking subfolder:", subfolderPath, "-", err)
-// 		}
-
-// 		// Randomly shuffle the collected files
-// 		rand.Shuffle(len(filesInSubfolder), func(i, j int) {
-// 			filesInSubfolder[i], filesInSubfolder[j] = filesInSubfolder[j], filesInSubfolder[i]
-// 		})
-
-// 		// Select up to 4 files
-// 		if len(filesInSubfolder) > 4 {
-// 			filesInSubfolder = filesInSubfolder[:4]
-// 		}
-
-// 		// Add selected files to the main playlist
-// 		playlist = append(playlist, filesInSubfolder...)
-// 	}
-
-// 	return playlist, nil
-// }
-
 func initializePlaylist(dir string) ([]string, error) {
 	var playlist []string
 
 	// Map dances to their categories
 	danceCategories := map[string][]string{
 		"Ballroom": {"Waltz", "Tango", "VienneseWaltz", "Foxtrot", "QuickStep"},
-		"Latin":    {"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"},
 		"Other":    {"WCS"},
+		"Latin":    {"Samba", "ChaCha", "Rumba", "PasoDoble", "Jive"},
 	}
 
 	for _, dances := range danceCategories {
@@ -301,14 +252,45 @@ func initializePlaylist(dir string) ([]string, error) {
 			}
 
 			if len(songs) > 0 {
+				fmt.Println("Songs for", extractMetadata(announcementFile))
+				for _, songPath := range songs {
+					metadata := extractMetadata(songPath)
+					fmt.Println(metadata)
+				}
+
 				// Add the announcement file before the songs of this dance
 				playlist = append(playlist, announcementFile)
 				playlist = append(playlist, songs...)
 			}
+
 		}
 	}
 
 	return playlist, nil
+}
+
+func extractMetadata(filePath string) string {
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Printf("Error opening file for metadata extraction: %v\n", err)
+		return filepath.Base(filePath) // Fallback to file name
+	}
+	defer file.Close()
+
+	metadata, err := tag.ReadFrom(file)
+	if err != nil {
+		//fmt.Printf("Error reading metadata: %v\n", err)
+		filename := filepath.Base(filePath) // Fallback to file name
+		return strings.TrimSuffix(filename, filepath.Ext(filename))
+	}
+
+	title := metadata.Title()
+	artist := metadata.Artist()
+	album := metadata.Album()
+	genre := metadata.Genre()
+
+	// Construct the display string
+	return fmt.Sprintf("%s / %s / %s / %s", title, genre, artist, album)
 }
 
 // Function to get songs from a subfolder
