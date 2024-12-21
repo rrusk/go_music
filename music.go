@@ -239,7 +239,7 @@ func initializePlaylist(dir string) ([]Song, error) {
 	for _, dances := range danceCategories {
 		for _, dance := range dances {
 			subfolder := filepath.Join(dir, dance)
-			announcementFile := filepath.Join("announce", dance+".mp3")
+			announcementFile := filepath.Join("announce", dance+".ogg")
 
 			// Check if the announcement file exists
 			if _, err := os.Stat(announcementFile); os.IsNotExist(err) {
@@ -293,6 +293,11 @@ func extractMetadata(filePath string) string {
 	artist := metadata.Artist()
 	album := metadata.Album()
 	genre := metadata.Genre()
+
+	if len(title) == 0 && len(artist) == 0 && len(album) == 0 && len(genre) == 0 {
+		filename := filepath.Base(filePath) // Fallback to file name
+		return strings.TrimSuffix(filename, filepath.Ext(filename))
+	}
 
 	// Construct the display string
 	return fmt.Sprintf("%s | %s | %s | %s", title, genre, artist, album)
